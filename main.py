@@ -99,24 +99,26 @@ def read_containers(pkg_name):
 
             # Read the container file in the container directory
             container_path = os.path.join(containers_dir, container_guid.hex.upper())
-            with open(os.path.join(container_path, f"container.{container_num}"), "rb") as cf:
-                # Unknown (always 04 00 00 00 ?)
-                cf.read(4)
-                # Number of files in this container
-                file_count = struct.unpack("<i", cf.read(4))[0]
-                for _ in range(file_count):
-                    # File name, 0x80 (128) bytes UTF-16 = 64 characters
-                    file_name = read_utf16_str(cf, 64)
-                    # Read file GUID
-                    file_guid = uuid.UUID(bytes_le=cf.read(16))
-                    # Ignore the copy of the GUID
-                    cf.read(16)
+            try: 
+                with open(os.path.join(container_path, f"container.{container_num}"), "rb") as cf:
+                    # Unknown (always 04 00 00 00 ?)
+                    cf.read(4)
+                    # Number of files in this container
+                    file_count = struct.unpack("<i", cf.read(4))[0]
+                    for _ in range(file_count):
+                        # File name, 0x80 (128) bytes UTF-16 = 64 characters
+                        file_name = read_utf16_str(cf, 64)
+                        # Read file GUID
+                        file_guid = uuid.UUID(bytes_le=cf.read(16))
+                        # Ignore the copy of the GUID
+                        cf.read(16)
 
-                    files.append({
-                        "name": file_name,
-                        # "guid": file_guid,
-                        "path": os.path.join(container_path, file_guid.hex.upper())
-                    })
+                        files.append({
+                            "name": file_name,
+                            # "guid": file_guid,
+                            "path": os.path.join(container_path, file_guid.hex.upper())
+                        })
+            except FileNotFoundError: continue
 
             containers.append({
                 "name": container_name,
@@ -217,12 +219,14 @@ def get_save_paths(store_pkg_name, containers, temp_dir):
             sfs_path = temp_folder / sfs_name
             with sfs_path.open("wb") as sfs_f:
                 for idx, part_path in sorted(parts.items(), key=lambda t: t[0]):
-                    with open(part_path, "rb") as part_f:
-                        data = part_f.read()
-                    size = sfs_f.write(data)
-                    pad = 16 - (size % 16)
-                    if pad != 16:
-                        sfs_f.write(pad_str[:pad].encode("ascii"))
+                    try:
+                        with open(part_path, "rb") as part_f:
+                            data = part_f.read()
+                        size = sfs_f.write(data)
+                        pad = 16 - (size % 16)
+                        if pad != 16:
+                            sfs_f.write(pad_str[:pad].encode("ascii"))
+                    except FileNotFoundError: continue
 
             save_meta.append((sfs_name, sfs_path))
 
